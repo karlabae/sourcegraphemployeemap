@@ -3,15 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sourcegraph Global Employee Map</title>
+    <title>Sourcegraph Employee Map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/topojson@3"></script>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f5f6fa;
+            font-feature-settings: 'kern' 1, 'liga' 1;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         
         .container {
@@ -27,15 +33,22 @@
             text-align: center;
             color: #2c3e50;
             margin-bottom: 10px;
-            font-size: 2.5em;
-            font-weight: 300;
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
         }
         
         .subtitle {
             text-align: center;
-            color: #7f8c8d;
+            color: #6c757d;
             margin-bottom: 30px;
-            font-size: 1.1em;
+            font-size: 1.125rem;
+            font-weight: 400;
+            line-height: 1.5;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
         }
         
         #map {
@@ -108,7 +121,9 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 14px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4a5568;
         }
         
         .legend-color {
@@ -129,8 +144,10 @@
         .stats h3 {
             margin: 0 0 20px 0;
             text-align: center;
-            font-size: 1.8em;
-            font-weight: 300;
+            font-size: 1.75rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            color: white;
         }
         
         .stats-grid {
@@ -148,15 +165,20 @@
         }
         
         .stat-number {
-            font-size: 2.5em;
-            font-weight: bold;
+            font-size: 2.75rem;
+            font-weight: 800;
             color: #74b9ff;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+            line-height: 1;
+            letter-spacing: -0.02em;
         }
         
         .stat-label {
-            font-size: 14px;
+            font-size: 0.875rem;
+            font-weight: 500;
             opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         
         .controls {
@@ -168,13 +190,16 @@
         }
         
         .btn {
-            padding: 10px 20px;
+            padding: 12px 24px;
             border: none;
             border-radius: 25px;
             background: #3498db;
             color: white;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            font-family: inherit;
+            letter-spacing: 0.02em;
             transition: all 0.3s ease;
         }
         
@@ -213,7 +238,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Sourcegraph Global Team</h1>
+        <h1>Sourcegraph Employee Map</h1>
         <p class="subtitle">Our distributed workforce across the globe</p>
         
         <div class="controls">
