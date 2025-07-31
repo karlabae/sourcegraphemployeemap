@@ -1,0 +1,19 @@
+{
+  "name": "sourcegraph-employee-map",
+  "version": "1.0.0",
+  "description": "Interactive maps showing Sourcegraph employee distribution",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": ["sourcegraph", "employee", "map", "visualization"],
+  "author": "Sourcegraph",
+  "license": "MIT"
+}

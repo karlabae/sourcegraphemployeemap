@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sourcegraph Global Employee Map</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/topojson@3"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f6fa;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        #map {
+            width: 100%;
+            height: 700px;
+            border: 1px solid #ecf0f1;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        
+        .country {
+            stroke: #bdc3c7;
+            stroke-width: 0.5;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .country:hover {
+            fill: #d5dbdb;
+            stroke: #95a5a6;
+            stroke-width: 1;
+        }
+        
+        .country-with-employees {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .country-with-employees:hover {
+            stroke: #2c3e50;
+            stroke-width: 2;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(44, 62, 80, 0.95);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-width: 300px;
+        }
+        
+        .tooltip h4 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            color: #3498db;
+        }
+        
+        .city-list {
+            font-size: 11px;
+            line-height: 1.4;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .legend {
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 1px solid #bdc3c7;
+        }
+        
+        .stats {
+            margin-top: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            color: white;
+        }
+        
+        .stats h3 {
+            margin: 0 0 20px 0;
+            text-align: center;
+            font-size: 1.8em;
+            font-weight: 300;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #74b9ff;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .btn.active {
+            background: #e74c3c;
+        }
+        
+        .employee-pin {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .employee-pin:hover {
+            stroke: #2c3e50;
+            stroke-width: 3;
+        }
+        
+        .pin-tooltip {
+            position: absolute;
+            background: rgba(231, 76, 60, 0.95);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sourcegraph Global Team</h1>
+        <p class="subtitle">Our distributed workforce across the globe</p>
+        
+        <div class="controls">
+            <button class="btn active" onclick="showAll()">Show All</button>
+            <button class="btn" onclick="showTop10()">Top 10 Countries</button>
+            <button class="btn" onclick="showUSStates()">US States Detail</button>
+            <button class="btn" onclick="togglePins()">Toggle Pins</button>
+            <button class="btn" onclick="resetZoom()">Reset Zoom</button>
+        </div>
+        
+        <div id="map"></div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(45deg, #aeb6bf, #2c3e50);"></div>
+                <span>Countries with employees (intensity by count)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #ecf0f1;"></div>
+                <span>No employees</span>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <h3>Global Distribution Summary</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="total-employees">0</div>
+                    <div class="stat-label">Total Employees</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="countries-count">0</div>
+                    <div class="stat-label">Countries</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="us-states-count">0</div>
+                    <div class="stat-label">US States</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="top-country">-</div>
+                    <div class="stat-label">Top Country</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // City coordinates for pinning locations
+        const cityCoordinates = {
+            // US Cities
+            "San Francisco": [-122.4194, 37.7749],
+            "Oakland": [-122.2711, 37.8044],
+            "Berkeley": [-122.2728, 37.8715],
+            "Los Angeles": [-118.2437, 34.0522],
+            "Mill Valley": [-122.5450, 37.9061],
+            "Phoenix": [-112.0740, 33.4484],
+            "Boise": [-116.2146, 43.6150],
+            "Monument": [-104.8719, 39.0917],
+            "Long Island City": [-73.9442, 40.7282],
+            "Menifee": [-117.1859, 33.6972],
+            "San Rafael": [-122.5311, 37.9735],
+            "Montclair": [-74.2099, 40.8268],
+            "Portland": [-122.6765, 45.5152],
+            "Washington": [-77.0369, 38.9072],
+            "Denver": [-104.9903, 39.7392],
+            "Austin": [-97.7431, 30.2672],
+            "Danbury": [-73.4540, 41.3948],
+            "Atlanta": [-84.3880, 33.7490],
+            "San Mateo": [-122.3255, 37.5630],
+            "Brooklyn": [-73.9442, 40.6782],
+            "Rancho Mission Viejo": [-117.6570, 33.6108],
+            "Coeur D Alene": [-116.7805, 47.6777],
+            "West Fargo": [-96.9003, 46.8747],
+            "Newbury Park": [-118.9098, 34.1858],
+            "New York": [-74.0060, 40.7128],
+            "Richmond": [-123.1207, 49.1666],
+            "Irvine": [-117.8265, 33.6846],
+            "Fort Worth": [-97.3307, 32.7555],
+            "Easton": [-75.2207, 40.6862],
+            "Mount Holly": [-81.0162, 35.2973],
+            "Kirkland": [-122.2087, 47.6815],
+            "Brighton": [-83.7802, 42.5295],
+            "Wailuku": [-156.5044, 20.8914],
+            "Hewitt": [-97.1967, 31.4638],
+            "Sacramento": [-121.4686, 38.5816],
+            "Grants Pass": [-123.3284, 42.4390],
+            "West Hartford": [-72.7420, 41.7620],
+            "Bellevue": [-122.2015, 47.6101],
+            "Columbus": [-82.9988, 39.9612],
+            "Chicago": [-87.6298, 41.8781],
+            "Pawtucket": [-71.3826, 41.8787],
+            "Schenectady": [-73.9396, 42.8142],
+            "Charlotte": [-80.8431, 35.2271],
+            "Arlington": [-77.0947, 38.8816],
+            "San Diego": [-117.1611, 32.7157],
+            "South San Francisco": [-122.4078, 37.6547],
+            "Cupertino": [-122.0322, 37.3230],
+            "Carnegie": [145.0281, -38.0667],
+            "Olumpia": [-122.9015, 47.0379],
+            "San Ramon": [-121.9780, 37.7799],
+            "Mason": [-84.4433, 42.5803],
+            "Parker": [-104.7614, 39.5186],
+            "Scottsdale": [-111.9261, 33.4942],
+            "Salt Lake City": [-111.8910, 40.7608],
+            "Englewood": [-104.9881, 39.6478],
+            "O'Fallon": [-90.6998, 38.8106],
+            "Fremont": [-121.9886, 37.5485],
+            "Seattle": [-122.3321, 47.6062],
+            "Vista": [-117.2425, 33.2000],
+            "Somerville": [-71.0995, 42.3876],
+            "Mountain View": [-122.0838, 37.3861],
+            "Saratoga": [-121.9552, 37.2638],
+            "Raleigh": [-78.6382, 35.7796],
+            "Norton": [-71.1856, 42.0098],
+            "Centerton": [-94.2891, 36.3590],
+            "Carmichael": [-121.3277, 38.6177],
+            "Placerville": [-120.7985, 38.7296],
+            "Marietta": [-84.5499, 33.9526],
+            "Saint Paul": [-93.0900, 44.9537],
+            "Essex": [-72.3926, 41.3537],
+            
+            // International Cities
+            "Cape Town": [18.4241, -33.9249],
+            "Vancouver": [-123.1207, 49.2827],
+            "Großwallstadt": [9.1553, 49.8847],
+            "Achim": [9.0304, 53.0158],
+            "Heidelberg": [8.6724, 49.3988],
+            "Tralee": [-9.7026, 52.2669],
+            "Curitiba": [-49.2671, -25.4284],
+            "Drobak": [10.6257, 59.6639],
+            "Tadcaster": [-1.2594, 53.8836],
+            "Kuta Utara": [115.1728, -8.6456],
+            "Nairobi": [36.8219, -1.2921],
+            "Barcelona": [2.1734, 41.3851],
+            "Neustadt": [8.1461, 49.3594],
+            "East Horsley": [-0.4436, 51.2802],
+            "Ogun state": [3.3441, 6.9827],
+            "El Masnou": [2.3097, 41.4801],
+            "Alexandria": [-84.3877, 38.9531],
+            "Taipei City": [121.5654, 25.0330],
+            "Kraków": [19.9450, 50.0647],
+            "Glebe": [151.1827, -33.8792],
+            "London": [-0.1276, 51.5074],
+            "Cherkasy": [32.0853, 49.4444],
+            "Somerset West": [18.8500, -34.0781],
+            "Burnaby": [-122.9540, 49.2488],
+            "New Delhi": [77.1025, 28.7041],
+            "Salzburg": [13.0550, 47.8095],
+            "Lagos": [3.3792, 6.5244],
+            "Alqueidão da Serra": [-8.7393, 39.7837],
+            "Nordelta, Tigre": [-58.6393, -34.4208],
+            "Skibbereen": [-9.2669, 51.5500],
+            "Ljubljana": [14.5058, 46.0569],
+            "Point Cook": [144.7500, -37.9000],
+            "Kingston": [149.0844, -35.3150],
+            "Bristol": [-2.5879, 51.4545],
+            "Birmingham": [-1.8904, 52.4862],
+            "Chiswick": [-0.2517, 51.4897],
+            "Warrington": [-2.5931, 53.3900],
+            "Brantham": [1.0331, 51.9667],
+            "York": [-1.0873, 53.9600],
+            "Malmö": [13.0038, 55.6050],
+            "Berlin": [13.4050, 52.5200],
+            "München": [11.5820, 48.1351],
+            "Lisbon": [-9.1393, 38.7223],
+            "Temperley, Lomas de Zamora": [-58.3975, -34.7667],
+            "Maroochydore": [153.0886, -26.6586],
+            "Calgary": [-114.0719, 51.0447],
+            "Fitzroy North": [144.9744, -37.7833],
+            "Taranagar": [75.0417, 29.0333],
+            "Preserje": [14.6667, 46.1667],
+            "Skillinge": [14.2667, 55.4667],
+            "Amsterdam": [4.9041, 52.3676],
+            "Tallinn": [24.7536, 59.4370],
+            "MUSTON": [138.0000, -35.0000],
+            "Wroclaw": [17.0385, 51.1079],
+            "Toronto": [-79.3832, 43.6532],
+            "Managua": [-86.2362, 12.1150],
+            "Milton": [-79.8774, 43.5183],
+            "Lefaivre": [-74.9000, 45.6000],
+            "Bydgoszcz": [18.0084, 53.1235]
+        };
+
+        // Process the CSV data into structured format
+        const employeeData = {
+            "United States": {
+                total: 127,
+                states: {
+                    "California": 31,
+                    "Texas": 13,
+                    "Colorado": 13,
+                    "New York": 4,
+                    "North Carolina": 3,
+                    "Georgia": 3,
+                    "Washington": 3,
+                    "Oregon": 2,
+                    "Idaho": 2,
+                    "Arizona": 2,
+                    "Illinois": 2,
+                    "Connecticut": 2,
+                    "Kentucky": 1,
+                    "South Carolina": 1,
+                    "North Dakota": 1,
+                    "Hawaii": 1,
+                    "Michigan": 2,
+                    "Pennsylvania": 1,
+                    "Rhode Island": 1,
+                    "Virginia": 1,
+                    "Ohio": 1,
+                    "Missouri": 1,
+                    "Massachusetts": 2,
+                    "Florida": 1,
+                    "Utah": 1,
+                    "Arkansas": 1,
+                    "Minnesota": 1
+                },
+                cities: ["San Francisco", "Oakland", "Berkeley", "Los Angeles", "Austin", "Denver", "New York", "Portland", "Seattle"]
+            },
+            "Canada": {
+                total: 10,
+                cities: ["Vancouver", "Richmond", "Burnaby", "Calgary", "Toronto", "Milton", "Lefaivre"]
+            },
+            "Germany": {
+                total: 5,
+                cities: ["Großwallstadt", "Achim", "Heidelberg", "Neustadt", "Berlin", "München"]
+            },
+            "United Kingdom": {
+                total: 10,
+                cities: ["Tadcaster", "East Horsley", "London", "Bristol", "Birmingham", "Chiswick", "Warrington", "Brantham", "York"]
+            },
+            "Spain": {
+                total: 4,
+                cities: ["Barcelona", "El Masnou"]
+            },
+            "Australia": {
+                total: 6,
+                cities: ["Glebe", "Point Cook", "Kingston", "Fitzroy North", "Maroochydore", "Carnegie", "MUSTON"]
+            },
+            "South Africa": {
+                total: 3,
+                cities: ["Cape Town", "Somerset West"]
+            },
+            "Poland": {
+                total: 3,
+                cities: ["Kraków", "Bydgoszcz", "Wroclaw"]
+            },
+            "Ireland": {
+                total: 2,
+                cities: ["Tralee", "Skibbereen"]
+            },
+            "Brazil": {
+                total: 1,
+                cities: ["Curitiba"]
+            },
+            "Norway": {
+                total: 1,
+                cities: ["Drobak"]
+            },
+            "Indonesia": {
+                total: 1,
+                cities: ["Kuta Utara"]
+            },
+            "Kenya": {
+                total: 1,
+                cities: ["Nairobi"]
+            },
+            "Nigeria": {
+                total: 3,
+                cities: ["Ogun state", "Lagos"]
+            },
+            "Taiwan": {
+                total: 1,
+                cities: ["Taipei City"]
+            },
+            "Ukraine": {
+                total: 1,
+                cities: ["Cherkasy"]
+            },
+            "India": {
+                total: 2,
+                cities: ["New Delhi", "Taranagar"]
+            },
+            "Austria": {
+                total: 1,
+                cities: ["Salzburg"]
+            },
+            "Portugal": {
+                total: 2,
+                cities: ["Alqueidão da Serra", "Lisbon"]
+            },
+            "Argentina": {
+                total: 2,
+                cities: ["Nordelta, Tigre", "Temperley, Lomas de Zamora"]
+            },
+            "Slovenia": {
+                total: 2,
+                cities: ["Ljubljana", "Preserje"]
+            },
+            "Sweden": {
+                total: 2,
+                cities: ["Malmö", "Skillinge"]
+            },
+            "Philippines": {
+                total: 1,
+                cities: ["Unknown"]
+            },
+            "Netherlands": {
+                total: 1,
+                cities: ["Amsterdam"]
+            },
+            "Estonia": {
+                total: 1,
+                cities: ["Tallinn"]
+            },
+            "Nicaragua": {
+                total: 1,
+                cities: ["Managua"]
+            }
+        };
+
+        // Color scale for countries based on employee count
+        const colorScale = d3.scaleSequential(d3.interpolateBlues)
+            .domain([0, d3.max(Object.values(employeeData), d => d.total)]);
+
+        // Set up dimensions
+        const width = 1340;
+        const height = 700;
+
+        // Create SVG
+        const svg = d3.select("#map")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        // Define Sourcegraph logo as reusable symbol
+        const defs = svg.append("defs");
+        
+        const logoSymbol = defs.append("symbol")
+            .attr("id", "sourcegraph-logo")
+            .attr("viewBox", "0 0 24 24");
+            
+        // Use the actual PNG logo
+        logoSymbol.append("image")
+            .attr("href", "pictogram-light (1).png")
+            .attr("width", "24")
+            .attr("height", "24");
+
+        // Create tooltip
+        const tooltip = d3.select("body")
+            .append("div")
+            .attr("class", "tooltip");
+
+        // Create pin tooltip
+        const pinTooltip = d3.select("body")
+            .append("div")
+            .attr("class", "pin-tooltip");
+
+        // Set up projection
+        const projection = d3.geoNaturalEarth1()
+            .scale(240)
+            .translate([width / 2, height / 2]);
+
+        const path = d3.geoPath().projection(projection);
+
+        // Create zoom group
+        const zoomGroup = svg.append("g")
+            .attr("class", "zoom-group");
+
+        // Set up zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])  // Allow zoom from 1x to 8x
+            .on("zoom", function(event) {
+                const transform = event.transform;
+                zoomGroup.attr("transform", transform);
+                
+                // Scale pins inversely but keep them visible
+                const pinScale = Math.max(0.3, 1 / transform.k); // Minimum 30% size, linear scaling
+                zoomGroup.selectAll(".employee-pin")
+                    .each(function() {
+                        const pin = d3.select(this);
+                        const originalSize = +pin.attr("data-original-size");
+                        const centerX = +pin.attr("data-center-x");
+                        const centerY = +pin.attr("data-center-y");
+                        const newSize = originalSize * pinScale;
+                        
+                        pin.attr("width", newSize)
+                           .attr("height", newSize)
+                           .attr("x", centerX - (newSize / 2))
+                           .attr("y", centerY - (newSize / 2));
+                    });
+            });
+
+        // Apply zoom to the SVG
+        svg.call(zoom);
+
+        // Load and display the world map
+        d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(function(world) {
+            const countries = topojson.feature(world, world.objects.countries);
+            
+            // Country name lookup (ISO numeric to name) - comprehensive list
+            const countryNames = {
+                "004": "Afghanistan", "008": "Albania", "012": "Algeria", "016": "American Samoa",
+                "020": "Andorra", "024": "Angola", "660": "Anguilla", "010": "Antarctica",
+                "028": "Antigua and Barbuda", "032": "Argentina", "051": "Armenia", "533": "Aruba",
+                "036": "Australia", "040": "Austria", "031": "Azerbaijan", "044": "Bahamas",
+                "048": "Bahrain", "050": "Bangladesh", "052": "Barbados", "112": "Belarus",
+                "056": "Belgium", "084": "Belize", "204": "Benin", "060": "Bermuda",
+                "064": "Bhutan", "068": "Bolivia", "535": "Bonaire", "070": "Bosnia and Herzegovina",
+                "072": "Botswana", "074": "Bouvet Island", "076": "Brazil", "086": "British Indian Ocean Territory",
+                "096": "Brunei", "100": "Bulgaria", "854": "Burkina Faso", "108": "Burundi",
+                "132": "Cape Verde", "116": "Cambodia", "120": "Cameroon", "124": "Canada",
+                "136": "Cayman Islands", "140": "Central African Republic", "148": "Chad", "152": "Chile",
+                "156": "China", "162": "Christmas Island", "166": "Cocos Islands", "170": "Colombia",
+                "174": "Comoros", "178": "Congo", "180": "Democratic Republic of the Congo", "184": "Cook Islands",
+                "188": "Costa Rica", "384": "Côte d'Ivoire", "191": "Croatia", "192": "Cuba",
+                "531": "Curaçao", "196": "Cyprus", "203": "Czech Republic", "208": "Denmark",
+                "262": "Djibouti", "212": "Dominica", "214": "Dominican Republic", "218": "Ecuador",
+                "818": "Egypt", "222": "El Salvador", "226": "Equatorial Guinea", "232": "Eritrea",
+                "233": "Estonia", "748": "Eswatini", "231": "Ethiopia", "238": "Falkland Islands",
+                "234": "Faroe Islands", "242": "Fiji", "246": "Finland", "250": "France",
+                "254": "French Guiana", "258": "French Polynesia", "260": "French Southern Territories", "266": "Gabon",
+                "270": "Gambia", "268": "Georgia", "276": "Germany", "288": "Ghana",
+                "292": "Gibraltar", "300": "Greece", "304": "Greenland", "308": "Grenada",
+                "312": "Guadeloupe", "316": "Guam", "320": "Guatemala", "831": "Guernsey",
+                "324": "Guinea", "624": "Guinea-Bissau", "328": "Guyana", "332": "Haiti",
+                "334": "Heard Island and McDonald Islands", "336": "Vatican City", "340": "Honduras", "344": "Hong Kong",
+                "348": "Hungary", "352": "Iceland", "356": "India", "360": "Indonesia",
+                "364": "Iran", "368": "Iraq", "372": "Ireland", "833": "Isle of Man",
+                "376": "Israel", "380": "Italy", "388": "Jamaica", "392": "Japan",
+                "832": "Jersey", "400": "Jordan", "398": "Kazakhstan", "404": "Kenya",
+                "296": "Kiribati", "408": "North Korea", "410": "South Korea", "414": "Kuwait",
+                "417": "Kyrgyzstan", "418": "Laos", "428": "Latvia", "422": "Lebanon",
+                "426": "Lesotho", "430": "Liberia", "434": "Libya", "438": "Liechtenstein",
+                "440": "Lithuania", "442": "Luxembourg", "446": "Macao", "807": "North Macedonia",
+                "450": "Madagascar", "454": "Malawi", "458": "Malaysia", "462": "Maldives",
+                "466": "Mali", "470": "Malta", "584": "Marshall Islands", "474": "Martinique",
+                "478": "Mauritania", "480": "Mauritius", "175": "Mayotte", "484": "Mexico",
+                "583": "Micronesia", "498": "Moldova", "492": "Monaco", "496": "Mongolia",
+                "499": "Montenegro", "500": "Montserrat", "504": "Morocco", "508": "Mozambique",
+                "104": "Myanmar", "516": "Namibia", "520": "Nauru", "524": "Nepal",
+                "528": "Netherlands", "540": "New Caledonia", "554": "New Zealand", "558": "Nicaragua",
+                "562": "Niger", "566": "Nigeria", "570": "Niue", "574": "Norfolk Island",
+                "580": "Northern Mariana Islands", "578": "Norway", "512": "Oman", "586": "Pakistan",
+                "585": "Palau", "275": "Palestine", "591": "Panama", "598": "Papua New Guinea",
+                "600": "Paraguay", "604": "Peru", "608": "Philippines", "612": "Pitcairn",
+                "616": "Poland", "620": "Portugal", "630": "Puerto Rico", "634": "Qatar",
+                "638": "Réunion", "642": "Romania", "643": "Russia", "646": "Rwanda",
+                "652": "Saint Barthélemy", "654": "Saint Helena", "659": "Saint Kitts and Nevis", "662": "Saint Lucia",
+                "663": "Saint Martin", "666": "Saint Pierre and Miquelon", "670": "Saint Vincent and the Grenadines", "882": "Samoa",
+                "674": "San Marino", "678": "São Tomé and Príncipe", "682": "Saudi Arabia", "686": "Senegal",
+                "688": "Serbia", "690": "Seychelles", "694": "Sierra Leone", "702": "Singapore",
+                "534": "Sint Maarten", "703": "Slovakia", "705": "Slovenia", "090": "Solomon Islands",
+                "706": "Somalia", "710": "South Africa", "239": "South Georgia", "728": "South Sudan",
+                "724": "Spain", "144": "Sri Lanka", "729": "Sudan", "740": "Suriname",
+                "744": "Svalbard and Jan Mayen", "752": "Sweden", "756": "Switzerland", "760": "Syria",
+                "158": "Taiwan", "762": "Tajikistan", "834": "Tanzania", "764": "Thailand",
+                "626": "Timor-Leste", "768": "Togo", "772": "Tokelau", "776": "Tonga",
+                "780": "Trinidad and Tobago", "788": "Tunisia", "792": "Turkey", "795": "Turkmenistan",
+                "796": "Turks and Caicos Islands", "798": "Tuvalu", "800": "Uganda", "804": "Ukraine",
+                "784": "United Arab Emirates", "826": "United Kingdom", "840": "United States", "858": "Uruguay",
+                "860": "Uzbekistan", "548": "Vanuatu", "862": "Venezuela", "704": "Vietnam",
+                "092": "British Virgin Islands", "850": "US Virgin Islands", "876": "Wallis and Futuna", "732": "Western Sahara",
+                "887": "Yemen", "894": "Zambia", "716": "Zimbabwe"
+            };
+
+            // Draw countries
+            zoomGroup.append("g")
+                .attr("class", "countries")
+                .selectAll("path")
+                .data(countries.features)
+                .enter()
+                .append("path")
+                .attr("class", d => {
+                    const countryName = countryNames[d.id];
+                    return employeeData[countryName] ? "country country-with-employees" : "country";
+                })
+                .attr("d", path)
+                .attr("fill", d => {
+                    const countryName = countryNames[d.id];
+                    const data = employeeData[countryName];
+                    if (data) {
+                        // Different shades of gray based on employee count - great contrast with orange pins
+                        if (data.total >= 50) return "#2c3e50"; // Dark gray for high count
+                        if (data.total >= 20) return "#34495e"; // Medium-dark gray
+                        if (data.total >= 10) return "#5d6d7e"; // Medium gray
+                        if (data.total >= 5) return "#85929e"; // Light-medium gray
+                        return "#aeb6bf"; // Light gray for low count
+                    }
+                    return "#ecf0f1"; // Very light gray for countries without employees
+                })
+                .on("mouseover", function(event, d) {
+                    const countryName = countryNames[d.id];
+                    const data = employeeData[countryName];
+                    
+                    if (data) {
+                        let tooltipContent = `<h4>${countryName}</h4>`;
+                        tooltipContent += `<strong>${data.total} employee${data.total !== 1 ? 's' : ''}</strong><br>`;
+                        
+                        if (data.cities) {
+                            tooltipContent += `<div class="city-list"><br>Cities: ${data.cities.slice(0, 8).join(', ')}`;
+                            if (data.cities.length > 8) tooltipContent += ` and ${data.cities.length - 8} more...`;
+                            tooltipContent += `</div>`;
+                        }
+                        
+                        if (data.states && countryName === "United States") {
+                            const topStates = Object.entries(data.states)
+                                .sort(([,a], [,b]) => b - a)
+                                .slice(0, 5);
+                            tooltipContent += `<div class="city-list"><br>Top States:<br>`;
+                            topStates.forEach(([state, count]) => {
+                                tooltipContent += `${state}: ${count}<br>`;
+                            });
+                            tooltipContent += `</div>`;
+                        }
+                        
+                        tooltip.style("opacity", 1)
+                            .html(tooltipContent)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    } else {
+                        tooltip.style("opacity", 1)
+                            .html(`<h4>${countryName || "Unknown"}</h4>No employees`)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    }
+                })
+                .on("mousemove", function(event) {
+                    tooltip.style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("opacity", 0);
+                });
+
+            // Create employee pins
+            createEmployeePins();
+            
+            // Update statistics
+            updateStats();
+        });
+
+        // Process CSV data to get actual city counts
+        const csvData = `Employee #,City,State,Country,
+101,Mill Valley,CA,United States,
+102,San Francisco,CA,United States,
+103,Phoenix,AZ,United States,
+104,Cape Town,Western Province,South Africa,
+105,Oakland,CA,United States,
+110,Berkeley,CA,United States,
+114,Großwallstadt,,Germany,
+117,Oak Ridge,NC,United States,
+121,Achim,,Germany,
+132,Vancouver,BC,Canada,
+138,Heidelberg,Baden-Württemberg,Germany,
+146,Long Island City,NY,United States,
+148,Boise,ID,United States,
+165,Tralee,County Kerry,Ireland,
+167,Curitiba,PR,Brazil,
+175,Monument,CO,United States,
+176,Drobak,Viken,Norway,
+178,Tadcaster,North Yorkshire,United Kingdom,
+180,Menifee,CA,United States,
+186,San Rafael,CA,United States,
+194,Montclair,NJ,United States,
+200,Kuta Utara,Badung Regency,Indonesia,
+202,Portland,OR,United States,
+208,Nairobi,Nairobi,Kenya,
+212,Washington,DC,United States,
+214,Denver,CO,United States,
+218,Barcelona,Barcelona,Spain,
+219,San Francisco,CA,United States,
+220,Denver,CO,United States,
+241,Austin,TX,United States,
+242,Danbury,CT,United States,
+244,Neustadt,,Germany,
+248,Austin,TX,United States,
+250,Atlanta,GA,United States,
+256,Los Angeles,CA,United States,
+259,East Horsley,Surrey,United Kingdom,
+266,East Point,GA,United States,
+271,Austin,TX,United States,
+275,Ogun state,,Nigeria,
+277,Naples,FL,United States,
+285,El Masnou,Barcelona,Spain,
+289,Alexandria,KY,United States,
+302,Austin,TX,United States,
+312,North Charleston,SC,United States,
+336,San Mateo,CA,United States,
+346,Taipei City,,Taiwan,
+351,Austin,TX,United States,
+352,Brooklyn,NY,United States,
+423,Rancho Mission Viejo,CA,United States,
+427,Kraków,Małopolska,Poland,
+429,Coeur D Alene,ID,United States,
+431,West Fargo,ND,United States,
+432,Portland,OR,United States,
+440,Glebe,NSW,Australia,
+449,London,Middlesex,United Kingdom,
+451,Newbury Park,CA,United States,
+452,San Francisco,CA,United States,
+463,Cherkasy,Cherkaska,Ukraine,
+467,Somerset West,Western Cape,South Africa,
+472,Richmond,BC,Canada,
+474,San Francisco,CA,United States,
+486,Barcelona,Eixample,Spain,
+491,New York,NY,United States,
+493,New Delhi,Delhi,India,
+497,Salzburg,Salzburg,Austria,
+500,Lagos,Lagos,Nigeria,
+506,Alqueidão da Serra,Leiria,Portugal,
+515,New York,NY,United States,
+523,Cape Town,Western Cape,South Africa,
+525,"Nordelta, Tigre",Buenos Aires,Argentina,
+528,Fort Worth,TX,United States,
+532,Skibbereen,Co. Cork,Ireland,
+541,Ljubljana,,Slovenia,
+546,Denver,CO,United States,
+547,San Jose,CA,United States,
+548,Point Cook,VIC,Australia,
+556,Easton,PA,United States,
+561,Burnaby,BC,Canada,
+563,San Francisco,CA,United States,
+564,Mount Holly,NC,United States,
+568,Lisbon,Portugal,Portugal,
+575,Bristol,"Bristol, City of",United Kingdom,
+576,Denver,CO,United States,
+581,Kirkland,WA,United States,
+582,Brighton,MI,United States,
+591,Wailuku,HI,United States,
+592,Hewitt,TX,United States,
+596,Sacramento,CA,United States,
+600,Grants Pass,OR,United States,
+602,Berkeley,CA,United States,
+606,West Hartford,CT,United States,
+607,Calgary,AB,Canada,
+610,Bellevue,WA,United States,
+615,Kingston,ACT,Australia,
+616,London,Greater London,United Kingdom,
+618,Fitzroy North,VIC,Australia,
+629,Vancouver,BC,Canada,
+630,Columbus,OH,United States,
+633,Oakland,CA,United States,
+634,,,Philippines,
+641,San Francisco,CA,United States,
+646,Chicago,IL,United States,
+647,Birmingham,West Midlands,United Kingdom,
+653,San Francisco,CA,United States,
+655,Taranagar,Rajasthan,India,
+658,Pawtucket,RI,United States,
+660,Chiswick,,United Kingdom,
+661,Preserje,,Slovenia,
+663,Berlin,Berlin,Germany,
+665,Schenectady,NY,United States,
+666,Malmö,Skåne,Sweden,
+668,Vancouver,BC,Canada,
+670,Denver,CO,United States,
+673,Vancouver,BC,Canada,
+674,Warrington,Cheshire,United Kingdom,
+675,Lagos,,Nigeria,
+676,Charlotte,NC,United States,
+677,Denver,CO,United States,
+678,Arlington,VA,United States,
+679,Austin,TX,United States,
+681,San Diego,CA,United States,
+682,San Diego,CA,United States,
+683,"Temperley, Lomas de Zamora",Buenos Aires,Argentina,
+684,South San Francisco,CA,United States,
+686,Cupertino,CA,United States,
+687,New York,NY,United States,
+688,Maroochydore,QLD,Australia,
+689,Carnegie,VIC,Australia,
+690,Olumpia,WA,United States,
+691,Brantham,Suffolk,United Kingdom,
+692,Austin,TX,United States,
+693,San Francisco,CA,United States,
+694,San Francisco,CA,United States,
+695,Denver,CO,United States,
+696,San Ramon,CA,United States,
+697,Denver,CO,United States,
+698,San Francisco,CA,United States,
+699,Mason,MI,United States,
+701,San Francisco,CA,United States,
+702,Parker,CO,United States,
+703,Scottsdale,AZ,United States,
+704,Austin,TX,United States,
+705,San Francisco,CA,United States,
+706,London,Greenwich,United Kingdom,
+707,Salt Lake City,UT,United States,
+708,Austin,TX,United States,
+709,Oakland,CA,United States,
+710,Denver,CO,United States,
+711,York,York,United Kingdom,
+712,Englewood,CO,United States,
+713,O'Fallon,MO,United States,
+714,Fremont,CA,United States,
+715,Seattle,WA,United States,
+716,Bydgoszcz,Kuyavia-Pomerania,Poland,
+717,Skillinge,,Sweden,
+718,Vista,CA,United States,
+719,Vancouver,BC,Canada,
+720,Lefaivre,ON,Canada,
+722,Somerville,MA,United States,
+723,Barcelona,Barcelona,Spain,
+724,Austin,TX,United States,
+725,Mountain View,CA,United States,
+726,London,"London, City of",United Kingdom,
+727,München,Bayern,Germany,
+728,Denver,CO,United States,
+729,Chicago,IL,United States,
+730,San Francisco,CA,United States,
+731,Saratoga,CA,United States,
+732,San Francisco,CA,United States,
+733,San Francisco,CA,United States,
+734,Raleigh,NC,United States,
+735,Norton,MA,United States,
+736,Fremont,CA,United States,
+737,Austin,TX,United States,
+738,Centerton,AR,United States,
+739,Carmichael,CA,United States,
+740,Amsterdam,,Netherlands,
+741,Tallinn,Harjumaa,Estonia,
+742,Irvine,CA,United States,
+743,MUSTON,SA,Australia,
+744,Wroclaw,Lower Silesia,Poland,
+745,San Francisco,CA,United States,
+746,Placerville,CA,United States,
+747,Marietta,GA,United States,
+749,Toronto,ON,Canada,
+750,Managua,Managua,Nicaragua,
+751,Milton,ON,Canada,
+752,Saint Paul,MN,United States,
+753,Essex,CT,United States,`;
+
+        function createEmployeePins() {
+            // Parse CSV data to count employees per city
+            const lines = csvData.split('\n').slice(1); // Skip header
+            const cityCounts = {};
+            
+            lines.forEach(line => {
+                if (line.trim()) {
+                    const parts = line.split(',');
+                    const city = parts[1];
+                    const state = parts[2];
+                    const country = parts[3];
+                    
+                    if (city && city.trim()) {
+                        const key = city.trim();
+                        cityCounts[key] = (cityCounts[key] || 0) + 1;
+                    }
+                }
+            });
+
+            // Debug: Log the top cities by count
+            const sortedCities = Object.entries(cityCounts).sort(([,a], [,b]) => b - a);
+            console.log("Top 10 cities by employee count:", sortedCities.slice(0, 10));
+
+            // Create pins for cities with coordinates
+            const pins = [];
+            Object.entries(cityCounts).forEach(([city, count]) => {
+                if (cityCoordinates[city]) {
+                    const coords = projection(cityCoordinates[city]);
+                    if (coords) {
+                        pins.push({
+                            city: city,
+                            count: count,
+                            x: coords[0],
+                            y: coords[1]
+                        });
+                    }
+                }
+            });
+
+            // Add pins to the map using Sourcegraph logo
+            zoomGroup.append("g")
+                .attr("class", "pins")
+                .selectAll("use")
+                .data(pins)
+                .enter()
+                .append("use")
+                .attr("class", "employee-pin")
+                .attr("href", "#sourcegraph-logo")
+                .each(function(d) {
+                    // Scaling based on employee count with better minimum size
+                    const size = Math.max(12, Math.min(60, 8 + d.count * 3)); // Minimum 12px, better visibility
+                    console.log(`${d.city}: ${d.count} employees = ${size}px pin`);
+                    d3.select(this)
+                        .attr("data-original-size", size)
+                        .attr("data-center-x", d.x)
+                        .attr("data-center-y", d.y)
+                        .attr("x", d.x - (size / 2))
+                        .attr("y", d.y - (size / 2))
+                        .attr("width", size)
+                        .attr("height", size);
+                })
+                .attr("opacity", 0.9)
+                .on("mouseover", function(event, d) {
+                    pinTooltip.style("opacity", 1)
+                        .html(`<strong>${d.city}</strong><br>${d.count} employee${d.count !== 1 ? 's' : ''}`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mousemove", function(event) {
+                    pinTooltip.style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    pinTooltip.style("opacity", 0);
+                });
+        }
+
+        let pinsVisible = true;
+
+        function togglePins() {
+            pinsVisible = !pinsVisible;
+            zoomGroup.select(".pins")
+                .style("display", pinsVisible ? "block" : "none");
+            
+            // Update button appearance
+            const btn = event.target;
+            if (pinsVisible) {
+                btn.textContent = "Hide Pins";
+                btn.style.background = "#e74c3c";
+            } else {
+                btn.textContent = "Show Pins";
+                btn.style.background = "#3498db";
+            }
+        }
+
+        function resetZoom() {
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, d3.zoomIdentity);
+        }
+
+        function updateStats() {
+            const totalEmployees = Object.values(employeeData).reduce((sum, country) => sum + country.total, 0);
+            const countriesCount = Object.keys(employeeData).length;
+            const usStatesCount = employeeData["United States"] ? Object.keys(employeeData["United States"].states).length : 0;
+            const topCountry = Object.keys(employeeData).reduce((a, b) => 
+                employeeData[a].total > employeeData[b].total ? a : b
+            );
+
+            document.getElementById("total-employees").textContent = totalEmployees;
+            document.getElementById("countries-count").textContent = countriesCount;
+            document.getElementById("us-states-count").textContent = usStatesCount;
+            document.getElementById("top-country").textContent = topCountry;
+        }
+
+        function showAll() {
+            // Reset all buttons
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Show all countries
+            zoomGroup.selectAll('.country-with-employees')
+                .style('opacity', 1);
+        }
+
+        function showTop10() {
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Get top 10 countries by employee count
+            const top10 = Object.entries(employeeData)
+                .sort(([,a], [,b]) => b.total - a.total)
+                .slice(0, 10)
+                .map(([country,]) => country);
+            
+            // Show only top 10
+            zoomGroup.selectAll('.country-with-employees')
+                .style('opacity', d => {
+                    const countryNames = {
+                        "840": "United States", "124": "Canada", "276": "Germany", "826": "United Kingdom",
+                        "724": "Spain", "036": "Australia", "710": "South Africa", "616": "Poland",
+                        "372": "Ireland", "566": "Nigeria"
+                    };
+                    const countryName = countryNames[d.id];
+                    return top10.includes(countryName) ? 1 : 0.3;
+                });
+        }
+
+        function showUSStates() {
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Highlight only the US
+            zoomGroup.selectAll('.country-with-employees')
+                .style('opacity', d => {
+                    return d.id === "840" ? 1 : 0.3; // US country code
+                });
+        }
+    </script>
+</body>
+</html>
