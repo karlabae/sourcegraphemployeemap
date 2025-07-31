@@ -14,7 +14,7 @@
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #f5f6fa;
+            background-color: #ffffff;
             font-feature-settings: 'kern' 1, 'liga' 1;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -23,10 +23,8 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            background: transparent;
+            padding: 0;
         }
         
         h1 {
@@ -54,9 +52,7 @@
         #map {
             width: 100%;
             height: 700px;
-            border: 1px solid #ecf0f1;
-            border-radius: 10px;
-            background: #f8f9fa;
+            background: transparent;
         }
         
         .country {
@@ -234,6 +230,107 @@
             transition: opacity 0.3s;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
+
+        .locations-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .locations-panel.open {
+            right: 0;
+        }
+
+        .locations-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .locations-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #a0aec0;
+            padding: 5px;
+        }
+
+        .close-btn:hover {
+            color: #4a5568;
+        }
+
+        .country-item {
+            margin-bottom: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .country-header {
+            padding: 12px 16px;
+            background: #f7fafc;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+            color: #2d3748;
+        }
+
+        .country-header:hover {
+            background: #edf2f7;
+        }
+
+        .country-count {
+            background: #3498db;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .cities-list {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: white;
+        }
+
+        .cities-list.expanded {
+            max-height: 300px;
+        }
+
+        .city-item {
+            padding: 8px 16px;
+            border-top: 1px solid #f1f5f9;
+            color: #4a5568;
+            font-size: 0.875rem;
+        }
+
+        .employee-count {
+            color: #718096;
+            font-size: 0.75rem;
+        }
     </style>
 </head>
 <body>
@@ -245,7 +342,7 @@
         <div class="controls">
             <button class="btn active" onclick="showAll()">Show All</button>
             <button class="btn" onclick="showTop10()">Top 10 Countries</button>
-            <button class="btn" onclick="showUSStates()">US States Detail</button>
+            <button class="btn" onclick="toggleLocations()">Locations</button>
             <button class="btn" onclick="togglePins()">Toggle Pins</button>
             <button class="btn" onclick="resetZoom()">Reset Zoom</button>
         </div>
@@ -283,6 +380,17 @@
                     <div class="stat-label">Top Country</div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Locations Panel -->
+    <div class="locations-panel" id="locationsPanel">
+        <div class="locations-header">
+            <h3>Employee Locations</h3>
+            <button class="close-btn" onclick="toggleLocations()">&times;</button>
+        </div>
+        <div id="locationsList">
+            <!-- Dynamic content will be inserted here -->
         </div>
     </div>
 
@@ -721,14 +829,14 @@
                     const countryName = countryNames[d.id];
                     const data = employeeData[countryName];
                     if (data) {
-                        // Different shades of gray based on employee count - great contrast with orange pins
-                        if (data.total >= 50) return "#2c3e50"; // Dark gray for high count
-                        if (data.total >= 20) return "#34495e"; // Medium-dark gray
-                        if (data.total >= 10) return "#5d6d7e"; // Medium gray
-                        if (data.total >= 5) return "#85929e"; // Light-medium gray
-                        return "#aeb6bf"; // Light gray for low count
+                        // More noticeable shades of gray based on employee count
+                        if (data.total >= 50) return "#1a252f"; // Very dark gray for high count
+                        if (data.total >= 20) return "#2c3e50"; // Dark gray  
+                        if (data.total >= 10) return "#4a5568"; // Medium-dark gray
+                        if (data.total >= 5) return "#718096"; // Medium gray
+                        return "#a0aec0"; // Light gray for low count
                     }
-                    return "#ecf0f1"; // Very light gray for countries without employees
+                    return "#f7fafc"; // Very light gray for countries without employees
                 })
                 .on("mouseover", function(event, d) {
                     const countryName = countryNames[d.id];
@@ -1121,15 +1229,259 @@
                 });
         }
 
-        function showUSStates() {
-            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+        function toggleLocations() {
+            const panel = document.getElementById('locationsPanel');
+            const isOpen = panel.classList.contains('open');
             
-            // Highlight only the US
-            zoomGroup.selectAll('.country-with-employees')
-                .style('opacity', d => {
-                    return d.id === "840" ? 1 : 0.3; // US country code
-                });
+            if (isOpen) {
+                panel.classList.remove('open');
+            } else {
+                panel.classList.add('open');
+                populateLocationsList();
+            }
+            
+            // Update button appearance
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            if (!isOpen) {
+                event.target.classList.add('active');
+            }
+        }
+
+        // Employee data with actual names from CSV
+        const employeeNames = {
+            "United States": {
+                "Milton": [],
+                "Oakland": ["Daniel Adler"],
+                "Austin": ["Samuel Artmann", "Alex Kemper", "Kelsey Nagel", "Kemper Hamilton", "Jason Harris", "Trevor Houghton", "Brady Jeong", "Janie Klapko", "Isa Svaluto - Ferro", "Amber Nocerino"],
+                "San Francisco": ["Yoo Sug Bae", "Adrienne Caffarel", "Madison Clark", "Jesse Edelstein", "Derek Feriancek", "Sonya Kavalam", "Beyang Liu", "James McNamara", "Kendrick Morris", "Sanjaye Narayan", "Connor O'Brien", "Thomas Pinckney", "Alex Romano", "Sayan Sisodiya", "Julia Xu", "Kelvin Yap"],
+                "Berlin": [],
+                "Fremont": ["Sanjay Bakal", "Feng Zhou"],
+                "Vancouver": ["Dineshkumar Balaraman", "Pin-Chun Lin", "Maedah Batool Sheikh", "Yosuke Sugi"],
+                "Boise": ["Owen Brennan"],
+                "Washington": ["Kelsey Brown"],
+                "Norton": ["Tyler Bruno"],
+                "Denver": ["Jessa Benson", "Caroline Jones", "Samuel Jordan", "Aimee Menne", "Benjamin Pepper", "Kellen Reid", "Jessica Seidler", "Dominique Vandenbulcke", "Maria Wreschner"],
+                "Monument": ["Camden Cheek"],
+                "Oak Ridge": ["Jiahua Chen"],
+                "Portland": ["Warren Gifford", "Samantha Herman"],
+                "Danbury": ["Devon Coords"],
+                "Alexandria": ["Mary Dawson"],
+                "North Charleston": ["Michael Rouse"],
+                "San Mateo": ["Desene Sterling"],
+                "Atlanta": ["Kevin Quigley"],
+                "East Point": ["Alex Jean-Baptiste"],
+                "Naples": ["Marija Petrovic"],
+                "Brooklyn": ["Carson Hopkins"],
+                "Rancho Mission Viejo": ["Carter Jaenichen"],
+                "Coeur D Alene": ["Amy Johnson"],
+                "West Fargo": ["Nathaniel Freng"],
+                "Newbury Park": ["Justin Dorfman"],
+                "New York": ["Cameron Holloway", "Samuel Lottes"],
+                "Long Island City": ["William Kolman"],
+                "Menifee": ["Seth Hoover"],
+                "San Rafael": ["Jonathan Kishpaugh"],
+                "Montclair": ["Caitlin Moran"],
+                "Chicago": ["Robert Evans", "Brittani Ferguson"],
+                "Hewitt": ["Jonathan Galindo"],
+                "Sacramento": ["Samantha Mandell"],
+                "Grants Pass": ["Peter Guy"],
+                "West Hartford": ["Lauren Ross"],
+                "Bellevue": ["Erika Rice Scherpelz"],
+                "Columbus": ["Alex Kemper"],
+                "Wailuku": ["Louis Jarvis"],
+                "Pawtucket": ["Alexandra Stanton"],
+                "Schenectady": ["Matthew Manela"],
+                "Charlotte": ["Larissa Oberhauser"],
+                "Arlington": ["Devon Pratt"],
+                "San Diego": ["Joshua Johnson", "George Miller"],
+                "South San Francisco": ["Ashley Singh"],
+                "Cupertino": [],
+                "Olumpia": ["Jonathan Raney"],
+                "San Ramon": ["Aditya Ranjan"],
+                "Mason": ["Travis Lyons"],
+                "Parker": ["Amy Wood"],
+                "Scottsdale": ["Max Wilson"],
+                "Salt Lake City": ["Robert Sadler"],
+                "Englewood": ["Dominique Vandenbulcke"],
+                "O'Fallon": ["Nathan Hessler"],
+                "Berkeley": ["Geoffrey Gilmore", "Enrique Gonzalez"],
+                "Seattle": ["Timothy Devereux", "Anish Lakhwara"],
+                "Vista": ["Azad Sepassi"],
+                "Somerville": ["Carlos Sanchez Arguello"],
+                "Mountain View": [],
+                "Saratoga": ["Atashi Jain"],
+                "Raleigh": ["Alaia Karina O'Friel"],
+                "Centerton": ["Philip Wieczorek"],
+                "Carmichael": ["Graham McBain"],
+                "Irvine": ["Ji Hoon Lim"],
+                "Fort Worth": ["Tracey Johnson"],
+                "Easton": ["Caroline Schurra"],
+                "Mount Holly": ["Jamie Lindsay"],
+                "Kirkland": ["Stephen Yegge"],
+                "Brighton": ["Jacob Pleiness"],
+                "Saint Paul": ["Timothy Culverhouse"],
+                "Essex": ["Ryan Carson"],
+                "Phoenix": ["Emi Stein"],
+                "Mill Valley": ["Samuel Slack"],
+                "Los Angeles": ["Gabriel Torres"],
+                "San Jose": ["Aditya Kalia"],
+                "Marietta": ["Daniel McAteer"],
+                "Placerville": ["Zachary Martin"]
+            },
+            "Canada": {
+                "Milton": ["Aditi Abhang"],
+                "Burnaby": ["Kalan Chan"],
+                "Calgary": ["Marc LeBlanc"],
+                "Toronto": ["Bailey Robbins"],
+                "Lefaivre": ["Karl Clement"],
+                "Richmond": ["Zichun Lin"]
+            },
+            "Germany": {
+                "Großwallstadt": ["Thorsten Ball"],
+                "Achim": ["Erik Seliger"],
+                "Heidelberg": ["Stefan Hengl"],
+                "Neustadt": ["Felix Kling"],
+                "Berlin": ["Michael Bahr"],
+                "München": ["Nicolay Gerold"]
+            },
+            "United Kingdom": {
+                "Tadcaster": ["Thomas Ross"],
+                "East Horsley": ["Ajay Sridhar"],
+                "London": ["Moshin Jaffar", "Daniil Riazanovskii", "Anton Sviridov", "Ashwin Thakur"],
+                "Bristol": ["William Dollman"],
+                "Birmingham": ["Taiyab Raja"],
+                "Chiswick": ["Tobi Rydlewicz"],
+                "Warrington": ["Daniel Ellis"],
+                "Brantham": ["Bianca Whitley"],
+                "York": ["Lewis Bonathan Metcalf"]
+            },
+            "Spain": {
+                "Barcelona": ["Diego Comas Torres", "James Ghaedi", "Vladimir Kulikov", "Federico Rubinstein"],
+                "El Masnou": ["Diego Comas Torres"]
+            },
+            "Australia": {
+                "Glebe": ["Isuru Fonseka"],
+                "Point Cook": ["Rakesh Joshi"],
+                "Kingston": ["Silky De Sailly"],
+                "Fitzroy North": ["Timothy Lucas"],
+                "Maroochydore": ["Harrison Charlesworth"],
+                "Carnegie": ["Arjun Singh"],
+                "MUSTON": ["Geoffrey Huntley"]
+            },
+            "South Africa": {
+                "Cape Town": ["William Bezuidenhout", "Keegan Smith"],
+                "Somerset West": ["Petri-Johan Last"]
+            },
+            "Poland": {
+                "Kraków": ["Filip Haftek"],
+                "Bydgoszcz": ["Adam Chrapkowski"],
+                "Wroclaw": ["Michal Kielbowicz"]
+            },
+            "Ireland": {
+                "Tralee": ["Thomas O Donnell"],
+                "Skibbereen": ["James Cotter"]
+            },
+            "Brazil": {
+                "Curitiba": ["André Eleuterio"]
+            },
+            "Norway": {
+                "Drobak": ["Ólafur Geirsson"]
+            },
+            "Indonesia": {
+                "Kuta Utara": ["Valerii Bugakov"]
+            },
+            "Kenya": {
+                "Nairobi": ["Stompy Mwendwa"]
+            },
+            "Nigeria": {
+                "Ogun state": ["Michael Bali"],
+                "Lagos": ["Bolaji Olajide", "Destiny Ubi"]
+            },
+            "Taiwan": {
+                "Taipei City": ["Varun Gandhi"]
+            },
+            "Ukraine": {
+                "Cherkasy": ["Taras Yemets"]
+            },
+            "India": {
+                "New Delhi": ["Naman Kumar"],
+                "Taranagar": ["Hitesh Sagtani"]
+            },
+            "Austria": {
+                "Salzburg": ["Dorijana Neumeier"]
+            },
+            "Portugal": {
+                "Alqueidão da Serra": ["Daniel Marques"],
+                "Lisbon": ["Vincent Ruijter"]
+            },
+            "Argentina": {
+                "Nordelta, Tigre": ["Nicole Comber"],
+                "Temperley, Lomas de Zamora": ["Melanie Cameron"]
+            },
+            "Slovenia": {
+                "Ljubljana": ["Miles Patton"],
+                "Preserje": ["Jan Hartman"]
+            },
+            "Sweden": {
+                "Malmö": ["Rik Nauta"],
+                "Skillinge": ["Oskar Wickström"]
+            },
+            "Philippines": {
+                "Unknown": ["Jim Espelico"]
+            },
+            "Netherlands": {
+                "Amsterdam": ["Artem Tyurin"]
+            },
+            "Estonia": {
+                "Tallinn": ["Dario Hamidi"]
+            },
+            "Nicaragua": {
+                "Managua": ["Cesar Correchel Downs"]
+            }
+        };
+
+        function populateLocationsList() {
+            const listContainer = document.getElementById('locationsList');
+            listContainer.innerHTML = '';
+
+            // Sort countries by employee count
+            const sortedCountries = Object.entries(employeeData)
+                .sort(([,a], [,b]) => b.total - a.total);
+
+            sortedCountries.forEach(([country, data]) => {
+                const countryDiv = document.createElement('div');
+                countryDiv.className = 'country-item';
+                
+                // Get cities with employee names for this country
+                const countryEmployees = employeeNames[country] || {};
+                
+                countryDiv.innerHTML = `
+                    <div class="country-header" onclick="toggleCountryDetails('${country}')">
+                        <span>${country}</span>
+                        <span class="country-count">${data.total}</span>
+                    </div>
+                    <div class="cities-list" id="cities-${country.replace(/\s+/g, '-')}">
+                        ${Object.entries(countryEmployees).map(([city, employees]) => `
+                            <div class="city-item">
+                                <strong>${city}</strong>
+                                <div class="employee-count">${employees.length} employee${employees.length !== 1 ? 's' : ''}</div>
+                                ${employees.length > 0 ? `
+                                    <div style="margin-top: 5px; padding-left: 10px; font-size: 0.8rem; color: #666;">
+                                        ${employees.join('<br>')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('') || '<div class="city-item">No employee data available</div>'}
+                    </div>
+                `;
+                
+                listContainer.appendChild(countryDiv);
+            });
+        }
+
+        function toggleCountryDetails(country) {
+            const citiesList = document.getElementById(`cities-${country.replace(/\s+/g, '-')}`);
+            citiesList.classList.toggle('expanded');
         }
     </script>
 </body>
